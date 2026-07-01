@@ -25,10 +25,12 @@ template {
   contents = <<EOT
 {!! $ldelim !!} with secret "pki_int/issue/service" "common_name={{ $cn['cn'] }}" "ttl=72h" {!! $rdelim !!}
 {!! $ldelim !!} .Data.certificate {!! $rdelim !!}
+{!! $ldelim !!} .Data.issuing_ca {!! $rdelim !!}
 {!! $ldelim !!} .Data.private_key {!! $rdelim !!}
 {!! $ldelim !!} end {!! $rdelim !!}
 EOT
   destination = "{{ $mtlsDir }}/{{ $cn['short'] }}.pem"
+  perms       = "0640"
   command     = "systemctl reload nginx"
 }
 @endforeach

@@ -13,6 +13,7 @@ use App\Plugins\RegisterViews;
 use App\Vito\Plugins\NClouds\VaultMtlsPlugin\Handlers\DisableMtls;
 use App\Vito\Plugins\NClouds\VaultMtlsPlugin\Handlers\EnableMtls;
 use App\Vito\Plugins\NClouds\VaultMtlsPlugin\Handlers\InstallAgent;
+use App\Vito\Plugins\NClouds\VaultMtlsPlugin\Handlers\ManageCns;
 use App\Vito\Plugins\NClouds\VaultMtlsPlugin\Handlers\RotateSecretId;
 use App\Vito\Plugins\NClouds\VaultMtlsPlugin\Handlers\Uninstall;
 
@@ -61,6 +62,18 @@ class Plugin extends AbstractPlugin
                     ->description('Newline- or comma-separated list of service hostnames. One certificate is issued and auto-renewed per CN.'),
             ]))
             ->handler(InstallAgent::class)
+            ->register();
+
+        RegisterServerFeatureAction::make('vault-mtls', 'manage-cns')
+            ->label('Manage service names')
+            ->form(DynamicForm::make([
+                DynamicField::make('app_cns')
+                    ->textarea()
+                    ->label('Service common names')
+                    ->placeholder("service1.example.local\nservice2.example.local")
+                    ->description('Vollständige Liste (ersetzt die bestehende). Vault-Adresse, AD Root CA und AppRole-Credentials werden vom Host wiederverwendet — kein erneutes Eintragen nötig.'),
+            ]))
+            ->handler(ManageCns::class)
             ->register();
 
         RegisterServerFeatureAction::make('vault-mtls', 'rotate-secret-id')
