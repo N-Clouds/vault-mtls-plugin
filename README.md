@@ -1,6 +1,6 @@
 # Vault mTLS Plugin (N-Clouds)
 
-A **standalone VitoDeploy plugin** (composer package `n-clouds/vault-mtls`)
+A **standalone VitoDeploy plugin** (composer package `n-clouds/vault-mtls-plugin`)
 that rolls out a HashiCorp Vault Agent to a managed server as a **Server Feature
 with Actions**. The agent authenticates to Vault with AppRole and continuously
 issues + auto-renews short-lived PKI certificates that nginx uses for mutual TLS
@@ -127,13 +127,13 @@ directives (port resets to `listen 80` only) and the `/internal/` location.
 This is a **standalone composer package**, not files inside the Vito app. Install
 it the same way as other N-Clouds Vito plugins (e.g. `n-clouds/sftp-storage-plugin`):
 
-- via **Vito's plugin installer** (paste `n-clouds/vault-mtls`), or
+- via **Vito's plugin installer** (paste `n-clouds/vault-mtls-plugin`), or
 - with **composer** into the Vito installation, then run plugin discovery and
   enable "Vault mTLS" in Settings → Plugins.
 
 The package autoloads under the PSR-4 namespace
-`App\Vito\Plugins\NClouds\VaultMtls\` and is discovered as
-`App\Vito\Plugins\NClouds\VaultMtls\Plugin`. After enabling, open a server →
+`App\Vito\Plugins\NClouds\VaultMtlsPlugin\` and is discovered as
+`App\Vito\Plugins\NClouds\VaultMtlsPlugin\Plugin`. After enabling, open a server →
 **Features** tab → the "Vault mTLS" feature and its actions appear there.
 
 ## Prerequisites
@@ -180,38 +180,3 @@ into your nginx provisioning or a post-render hook if required.
   if your PKI role enforces a different max TTL.
 - The token sink `/run/vault-agent/token` lives on tmpfs and is recreated on boot;
   the daemon (`auto_restart = true`) re-auths automatically.
-
-## Implementation notes (Vito v3.x contract targeted)
-
-- **Package layout** mirrors `n-clouds/sftp-storage-plugin`: `Plugin.php` at the
-  package root, handlers under `Handlers/`, SSH/config scripts as Blade views
-  under `views/scripts/`.
-- **View namespace**: `Plugin::boot()` calls
-  `App\Plugins\RegisterViews::make('vault-mtls')->path(__DIR__.'/views')->register()`,
-  which stores `plugins.views['vault-mtls'] => <path>` in config. The handler also
-  defensively `addNamespace('vault-mtls', .../views)` before rendering so that
-  `view('vault-mtls::scripts.agent-hcl', [...])` resolves.
-- **Feature/action registration**: `App\Plugins\RegisterServerFeature` +
-  `App\Plugins\RegisterServerFeatureAction` (stored in `config('server.features')`).
-- **Handler contract**: extend `App\ServerFeatures\Action` (constructor takes a
-  `App\Models\Server`) and implement `name(): string`, `active(): bool`,
-  `handle(\Illuminate\Http\Request): void`. Handlers are invoked in
-  `App\Http\Controllers\ServerFeatureController::action()` as
-  `new $handler($server); $handler->handle($request);`.
-- **Daemon creation**:
-  `app(App\Actions\Worker\CreateWorker::class)->create($server, [...], null)` —
-  `site_id = null` makes it a server daemon; the supervisor program is created on
-  the `ssh` queue.
-- **Site feature contract**: registered with
-  `App\Plugins\RegisterSiteFeature::make($type, $name)` +
-  `App\Plugins\RegisterSiteFeatureAction::make($type, $feature, $name)`
-  (site-type-keyed, stored under `config('site.types.<type>.features')`). Handlers
-  extend `App\SiteFeatures\Action` (constructor takes a `App\Models\Site`, exposed
-  as `$this->site`) and implement `name(): string`, `active(): bool`,
-  `form(): ?DynamicForm`, `handle(\Illuminate\Http\Request): void`. They are
-  invoked in `App\Http\Controllers\SiteFeatureController::action()` as
-  `new $handler($site); $handler->handle($request);`. The vhost is edited through
-  `$this->site->webserver()->updateVHost($site, replace:, regenerate:, append:)`
-  (`App\Services\Webserver\Nginx`), where `append` inserts content before a
-  block's `#[/block]` marker and `regenerate` rebuilds a block from its stock
-  blade template under `resources/views/ssh/services/webserver/nginx/vhost-blocks/`.

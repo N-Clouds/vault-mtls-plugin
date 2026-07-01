@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Vito\Plugins\NClouds\VaultMtls;
+namespace App\Vito\Plugins\NClouds\VaultMtlsPlugin;
 
 use App\DTOs\DynamicField;
 use App\DTOs\DynamicForm;
@@ -10,11 +10,11 @@ use App\Plugins\RegisterServerFeatureAction;
 use App\Plugins\RegisterSiteFeature;
 use App\Plugins\RegisterSiteFeatureAction;
 use App\Plugins\RegisterViews;
-use App\Vito\Plugins\NClouds\VaultMtls\Handlers\DisableMtls;
-use App\Vito\Plugins\NClouds\VaultMtls\Handlers\EnableMtls;
-use App\Vito\Plugins\NClouds\VaultMtls\Handlers\InstallAgent;
-use App\Vito\Plugins\NClouds\VaultMtls\Handlers\RotateSecretId;
-use App\Vito\Plugins\NClouds\VaultMtls\Handlers\Uninstall;
+use App\Vito\Plugins\NClouds\VaultMtlsPlugin\Handlers\DisableMtls;
+use App\Vito\Plugins\NClouds\VaultMtlsPlugin\Handlers\EnableMtls;
+use App\Vito\Plugins\NClouds\VaultMtlsPlugin\Handlers\InstallAgent;
+use App\Vito\Plugins\NClouds\VaultMtlsPlugin\Handlers\RotateSecretId;
+use App\Vito\Plugins\NClouds\VaultMtlsPlugin\Handlers\Uninstall;
 
 class Plugin extends AbstractPlugin
 {

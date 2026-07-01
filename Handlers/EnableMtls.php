@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Vito\Plugins\NClouds\VaultMtls\Handlers;
+namespace App\Vito\Plugins\NClouds\VaultMtlsPlugin\Handlers;
 
 use App\Helpers\SSH;
 use App\SiteFeatures\Action;

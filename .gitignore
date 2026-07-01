@@ -1,0 +1,6 @@
+# IDE / editor
+/.idea/
+
+# OS cruft
+.DS_Store
+Thumbs.db

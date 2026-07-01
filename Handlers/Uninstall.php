@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Vito\Plugins\NClouds\VaultMtls\Handlers;
+namespace App\Vito\Plugins\NClouds\VaultMtlsPlugin\Handlers;
 
 use App\Actions\Worker\DeleteWorker;
 use App\Helpers\SSH;
