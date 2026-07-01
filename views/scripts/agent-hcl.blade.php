@@ -31,7 +31,10 @@ template {
 EOT
   destination = "{{ $mtlsDir }}/{{ $cn['short'] }}.pem"
   perms       = "0640"
-  command     = "systemctl reload nginx"
+  # Owner = the app's OS user (= CN short label), so that app's PHP process can read its own
+  # client cert (0640: owner+root only, never world-readable). chown is best-effort: if no such
+  # user exists the file stays root-owned (fine — it's then only a server cert, read by nginx=root).
+  command     = "chown {{ $cn['short'] }} {{ $mtlsDir }}/{{ $cn['short'] }}.pem 2>/dev/null || true; systemctl reload nginx"
 }
 @endforeach
 
