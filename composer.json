@@ -1,0 +1,20 @@
+{
+    "name": "n-clouds/vault-mtls",
+    "description": "Vault mTLS (Agent rollout) plugin for VitoDeploy",
+    "type": "library",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "N-Clouds",
+            "homepage": "https://github.com/N-Clouds"
+        }
+    ],
+    "autoload": {
+        "psr-4": {
+            "App\\Vito\\Plugins\\NClouds\\VaultMtls\\": ""
+        }
+    },
+    "require": {
+        "php": "^8.2"
+    }
+}
