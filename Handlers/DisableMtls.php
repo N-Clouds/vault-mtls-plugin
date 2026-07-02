@@ -26,7 +26,7 @@ class DisableMtls extends Action
         // resets to listen 80 only) and the /internal/ location.
         $this->site->webserver()->updateVHost(
             $this->site,
-            regenerate: ['port', 'core'],
+            regenerate: ['port', 'core', 'php'],
         );
 
         $request->session()->flash('success', 'mTLS disabled — vhost reverted to stock (port 80 only).');

@@ -50,15 +50,22 @@ class EnableMtls extends Action
 
         $locationSnippet = $this->view('scripts.vhost-mtls-location', [])->render();
 
+        // fastcgi_param SSL_CLIENT_* → PHP: passes the verified client identity (DN)
+        // to the app so it can bind the mTLS CN to the envelope's source_app. Must live
+        // INSIDE `location ~ \.php$` (nginx does not inherit fastcgi_param into a block
+        // that defines its own), hence the dedicated `php` block regenerate + append.
+        $phpSnippet = $this->view('scripts.vhost-mtls-php', [])->render();
+
         // Regenerate the affected blocks to stock first (idempotent re-enable), then
-        // append the server-level TLS + client-verify directives and the /internal/
-        // location inside the server block. Port 80 stays intact (Plesk uses it).
+        // append the server-level TLS + client-verify directives, the /internal/
+        // location and the PHP SSL_CLIENT_* params. Port 80 stays intact (Plesk uses it).
         $this->site->webserver()->updateVHost(
             $this->site,
-            regenerate: ['port', 'core'],
+            regenerate: ['port', 'core', 'php'],
             append: [
                 'port' => $portSnippet,
                 'core' => $locationSnippet,
+                'php'  => $phpSnippet,
             ],
         );
 
