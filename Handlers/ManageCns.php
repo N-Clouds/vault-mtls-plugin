@@ -71,6 +71,16 @@ class ManageCns extends Action
         $ssh->write(self::AGENT_DIR.'/agent.hcl', $hcl, 'root');
         $ssh->exec('sudo chmod 644 '.self::AGENT_DIR.'/agent.hcl', 'vault-mtls-chmod-config');
 
+        // Re-render the home-copy script for the updated CN list (agent.hcl `command` calls it
+        // on every rotation to mirror certs into /home/<app>/mtls/ inside the PHP open_basedir).
+        $syncScript = $this->view('scripts.sync-home-certs', [
+            'mtlsDir' => self::MTLS_DIR,
+            'agentDir' => self::AGENT_DIR,
+            'cns' => $cns,
+        ])->render();
+        $ssh->write(self::AGENT_DIR.'/sync-home-certs.sh', $syncScript, 'root');
+        $ssh->exec('sudo chmod 755 '.self::AGENT_DIR.'/sync-home-certs.sh', 'vault-mtls-chmod-sync');
+
         // Restart so the agent re-reads agent.hcl and issues the (new) certs.
         app(ManageWorker::class)->restart($daemon);
 
@@ -106,7 +116,7 @@ class ManageCns extends Action
     }
 
     /**
-     * @return array<int, array{cn: string, short: string}>
+     * @return array<int, array{cn: string, short: string, home: string}>
      */
     private function parseCns(string $raw): array
     {
@@ -118,9 +128,13 @@ class ManageCns extends Action
                 continue;
             }
             $short = explode('.', $cn)[0];
+            $short = $short !== '' ? $short : 'service';
             $cns[] = [
                 'cn' => $cn,
-                'short' => $short !== '' ? $short : 'service',
+                'short' => $short,
+                // Home dir of the app's OS user (Vito convention: /home/<user>; CN short == user
+                // == app id) — where the client cert is mirrored for the PHP open_basedir.
+                'home' => '/home/'.$short,
             ];
         }
 

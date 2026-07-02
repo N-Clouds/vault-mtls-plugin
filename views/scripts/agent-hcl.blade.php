@@ -34,7 +34,8 @@ EOT
   # Owner = the app's OS user (= CN short label), so that app's PHP process can read its own
   # client cert (0640: owner+root only, never world-readable). chown is best-effort: if no such
   # user exists the file stays root-owned (fine — it's then only a server cert, read by nginx=root).
-  command     = "chown {{ $cn['short'] }} {{ $mtlsDir }}/{{ $cn['short'] }}.pem 2>/dev/null || true; systemctl reload nginx"
+  # sync-home-certs.sh then copies it into the app HOME (inside its PHP open_basedir); see script.
+  command     = "chown {{ $cn['short'] }} {{ $mtlsDir }}/{{ $cn['short'] }}.pem 2>/dev/null || true; {{ $agentDir }}/sync-home-certs.sh 2>/dev/null || true; systemctl reload nginx"
 }
 @endforeach
 
@@ -46,5 +47,6 @@ template {
 {!! $ldelim !!} end {!! $rdelim !!}
 EOT
   destination = "{{ $mtlsDir }}/ca-bundle.pem"
-  command     = "systemctl reload nginx"
+  # Re-copy the CA bundle into every app HOME on rotation, then reload nginx.
+  command     = "{{ $agentDir }}/sync-home-certs.sh 2>/dev/null || true; systemctl reload nginx"
 }

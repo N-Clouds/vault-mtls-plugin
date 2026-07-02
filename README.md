@@ -33,9 +33,21 @@ On run it SSHes to the server (as root via `sudo`) and:
      and a `file` sink at `/run/vault-agent/token`.
    - One `template` per CN issuing `pki_int/issue/service`
      (`common_name=<cn>`, `ttl=72h`) to `/etc/nginx/mtls/<shortname>.pem`
-     (`<shortname>` = first DNS label of the CN), with `command = "systemctl reload nginx"`.
+     (`<shortname>` = first DNS label of the CN). Its `command` chowns the cert to
+     the app's OS user, runs the home-copy script (below) and reloads nginx.
    - One `template` rendering `pki_int/cert/ca_chain` to
-     `/etc/nginx/mtls/ca-bundle.pem`.
+     `/etc/nginx/mtls/ca-bundle.pem`, whose `command` also runs the home-copy
+     script and reloads nginx.
+3b. Renders `views/scripts/sync-home-certs.blade.php` to
+   `/etc/vault-agent/sync-home-certs.sh` (0755) and runs it once.
+   **Why:** an app's PHP-FPM `open_basedir` is limited to `/home/<app>/` (+ `/tmp`),
+   and Guzzle stats the cert **and** CA-bundle paths in PHP before libcurl reads
+   them — so an outbound `/internal` call cannot use certs under `/etc/nginx/mtls`.
+   The script mirrors each app's client cert + the shared CA bundle into
+   `/home/<app>/mtls/` (owner = the app user, cert `0640`, bundle `0644`). The
+   agent re-runs it on **every 72 h rotation** via the template `command` hooks, so
+   the home copies never go stale. The event-bus config default therefore points at
+   `/home/<EVENT_BUS_APP_ID>/mtls/<EVENT_BUS_APP_ID>.pem` (CN short == OS user == app id).
 4. Creates a Vito **daemon** (Worker with `site_id = null`) named `vault-agent`
    running `vault agent -config=/etc/vault-agent/agent.hcl` as `root`,
    `auto_start = true`, `auto_restart = true`.

@@ -87,6 +87,20 @@ class InstallAgent extends Action
         $ssh->write(self::AGENT_DIR.'/agent.hcl', $hcl, 'root');
         $ssh->exec('sudo chmod 644 '.self::AGENT_DIR.'/agent.hcl', 'vault-mtls-chmod-config');
 
+        // 3b. Home-copy script — the agent runs it on every rotation (agent.hcl `command`)
+        // to mirror each app's client cert + the CA bundle into /home/<app>/mtls/, inside
+        // that app's PHP open_basedir (Guzzle stats the paths, so /etc/nginx/mtls is off-limits).
+        $syncScript = $this->view('scripts.sync-home-certs', [
+            'mtlsDir' => self::MTLS_DIR,
+            'agentDir' => self::AGENT_DIR,
+            'cns' => $cns,
+        ])->render();
+        $ssh->write(self::AGENT_DIR.'/sync-home-certs.sh', $syncScript, 'root');
+        $ssh->exec('sudo chmod 755 '.self::AGENT_DIR.'/sync-home-certs.sh', 'vault-mtls-chmod-sync');
+        // Run once now so existing certs are mirrored immediately (best-effort; the agent
+        // re-runs it on the next render anyway).
+        $ssh->exec('sudo '.self::AGENT_DIR.'/sync-home-certs.sh || true', 'vault-mtls-sync-home');
+
         // 4. (Re)create the vault-agent daemon (Worker with site_id = null).
         $existing = $this->existingDaemon();
         if ($existing) {
@@ -115,7 +129,7 @@ class InstallAgent extends Action
     }
 
     /**
-     * @return array<int, array{cn: string, short: string}>
+     * @return array<int, array{cn: string, short: string, home: string}>
      */
     private function parseCns(string $raw): array
     {
@@ -127,9 +141,14 @@ class InstallAgent extends Action
                 continue;
             }
             $short = explode('.', $cn)[0];
+            $short = $short !== '' ? $short : 'service';
             $cns[] = [
                 'cn' => $cn,
-                'short' => $short !== '' ? $short : 'service',
+                'short' => $short,
+                // Home dir of the app's OS user (Vito convention: /home/<user>, and the CN
+                // short label == the site user == the app id). This is where the client cert
+                // is mirrored so the app's PHP open_basedir can read it.
+                'home' => '/home/'.$short,
             ];
         }
 
