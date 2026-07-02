@@ -39,7 +39,7 @@ class InstallAgent extends Action
     {
         $this->validate($request);
 
-        $vaultAddr = trim((string) $request->input('vault_addr'));
+        $vaultAddr = $this->normalizeVaultAddr(trim((string) $request->input('vault_addr')));
         $adRootCa = (string) $request->input('ad_root_ca');
         $roleId = trim((string) $request->input('role_id'));
         $secretId = trim((string) $request->input('secret_id'));
@@ -155,6 +155,28 @@ class InstallAgent extends Action
         }
 
         return $cns;
+    }
+
+    /**
+     * Ensure the Vault address carries an explicit port. Vault's API listener defaults to 8200;
+     * an operator who enters just "https://vault.example.local" (no port) would otherwise have the
+     * agent dial 443, where nothing listens — the SYN is dropped by the host firewall and auth
+     * fails with "i/o timeout", so no token and no rendered secrets. If a port is already present
+     * (e.g. :443 for a future nginx TLS proxy) it is respected untouched.
+     */
+    private function normalizeVaultAddr(string $addr): string
+    {
+        $parts = parse_url($addr);
+
+        // Leave malformed input alone — validate() rejects anything without https://,http://.
+        if ($parts === false || ! isset($parts['host']) || isset($parts['port'])) {
+            return $addr;
+        }
+
+        $scheme = $parts['scheme'] ?? 'https';
+        $suffix = substr($addr, strpos($addr, $parts['host']) + strlen($parts['host']));
+
+        return $scheme.'://'.$parts['host'].':8200'.$suffix;
     }
 
     /**

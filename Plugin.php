@@ -40,8 +40,8 @@ class Plugin extends AbstractPlugin
                 DynamicField::make('vault_addr')
                     ->text()
                     ->label('Vault address')
-                    ->default('https://vault.example.local')
-                    ->description('Base URL of the Vault server the agent authenticates against.'),
+                    ->default('https://vault.example.local:8200')
+                    ->description('Base URL of the Vault server the agent authenticates against. Include the API port — Vault listens on 8200. If you omit the port, :8200 is assumed (an explicit port such as :443 for an nginx TLS proxy is respected).'),
                 DynamicField::make('ad_root_ca')
                     ->textarea()
                     ->label('AD Root CA (PEM)')
