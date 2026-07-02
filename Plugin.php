@@ -60,6 +60,11 @@ class Plugin extends AbstractPlugin
                     ->label('Service common names')
                     ->placeholder("service1.example.local\nservice2.example.local")
                     ->description('Newline- or comma-separated list of service hostnames. One certificate is issued and auto-renewed per CN.'),
+                DynamicField::make('hmac_kv_path')
+                    ->text()
+                    ->label('Event-bus HMAC KV path (optional)')
+                    ->placeholder('secret/data/eventbus/hmac')
+                    ->description('Leave empty to skip. If set, the agent also renders the event-bus HMAC signing secret from this Vault KV v2 path to /etc/nginx/mtls/eventbus-hmac (mirrored into each app HOME). The AppRole policy must allow read on this path.'),
             ]))
             ->handler(InstallAgent::class)
             ->register();

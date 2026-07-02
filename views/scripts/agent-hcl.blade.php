@@ -50,3 +50,20 @@ EOT
   # Re-copy the CA bundle into every app HOME on rotation, then reload nginx.
   command     = "{{ $agentDir }}/sync-home-certs.sh 2>/dev/null || true; systemctl reload nginx"
 }
+@if(!empty($hmacKvPath))
+
+# Event-bus HMAC signing secret from Vault KV ({{ $hmacKvPath }}).
+# Line 1 = current, line 2 = previous (optional, for rotation overlap). Read at runtime
+# by the app's VaultFileSigningKeyResolver. Requires the agent's AppRole policy to allow
+# read on this KV path. sync-home-certs.sh mirrors it into each app HOME (open_basedir).
+template {
+  contents = <<EOT
+{!! $ldelim !!} with secret "{{ $hmacKvPath }}" {!! $rdelim !!}{!! $ldelim !!} .Data.data.current {!! $rdelim !!}
+{!! $ldelim !!} if .Data.data.previous {!! $rdelim !!}{!! $ldelim !!} .Data.data.previous {!! $rdelim !!}
+{!! $ldelim !!} end {!! $rdelim !!}{!! $ldelim !!} end {!! $rdelim !!}
+EOT
+  destination = "{{ $mtlsDir }}/eventbus-hmac"
+  perms       = "0640"
+  command     = "{{ $agentDir }}/sync-home-certs.sh 2>/dev/null || true"
+}
+@endif

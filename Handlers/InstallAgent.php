@@ -44,6 +44,7 @@ class InstallAgent extends Action
         $roleId = trim((string) $request->input('role_id'));
         $secretId = trim((string) $request->input('secret_id'));
         $cns = $this->parseCns((string) $request->input('app_cns'));
+        $hmacKvPath = trim((string) $request->input('hmac_kv_path'));
 
         /** @var SSH $ssh */
         $ssh = $this->server->ssh();
@@ -83,6 +84,7 @@ class InstallAgent extends Action
             'ldelim' => '{{',
             'rdelim' => '}}',
             'cns' => $cns,
+            'hmacKvPath' => $hmacKvPath,
         ])->render();
         $ssh->write(self::AGENT_DIR.'/agent.hcl', $hcl, 'root');
         $ssh->exec('sudo chmod 644 '.self::AGENT_DIR.'/agent.hcl', 'vault-mtls-chmod-config');

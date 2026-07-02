@@ -55,9 +55,11 @@ class ManageCns extends Action
 
         $vaultAddr = $this->readVaultAddr($ssh);
         $cns = $this->parseCns((string) $request->input('app_cns'));
+        $hmacKvPath = $this->readHmacKvPath($ssh);
 
         // Re-render agent.hcl reusing the on-host vault address; the ad-root-ca.pem / role_id /
-        // secret_id files stay exactly as they are.
+        // secret_id files stay exactly as they are. The HMAC KV path (if configured at install)
+        // is preserved by reading it back from the existing agent.hcl.
         $hcl = $this->view('scripts.agent-hcl', [
             'vaultAddr' => $vaultAddr,
             'agentDir' => self::AGENT_DIR,
@@ -66,6 +68,7 @@ class ManageCns extends Action
             'ldelim' => '{{',
             'rdelim' => '}}',
             'cns' => $cns,
+            'hmacKvPath' => $hmacKvPath,
         ])->render();
 
         $ssh->write(self::AGENT_DIR.'/agent.hcl', $hcl, 'root');
@@ -105,6 +108,20 @@ class ManageCns extends Action
         }
 
         return $addr;
+    }
+
+    /**
+     * Preserve the event-bus HMAC KV path (if it was configured at install) by reading it
+     * back from the comment anchor in the existing agent.hcl. Empty when HMAC rendering is off.
+     */
+    private function readHmacKvPath(SSH $ssh): string
+    {
+        $out = $ssh->exec(
+            "sudo grep -oP '# Event-bus HMAC signing secret from Vault KV \\(\\K[^)]+' ".self::AGENT_DIR.'/agent.hcl 2>/dev/null | head -n1 || true',
+            'vault-mtls-read-hmac-path'
+        );
+
+        return trim($out);
     }
 
     private function existingDaemon(): ?Worker

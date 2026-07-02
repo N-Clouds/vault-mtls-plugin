@@ -35,6 +35,14 @@ sync_app() {
     chmod 0644 "$dir/ca-bundle.pem" 2>/dev/null || true
   fi
 
+  # Event-bus HMAC secret (present only when the KV template is enabled). Secret →
+  # owner-readable only (0640), like the client cert.
+  if [ -f "$MTLS_DIR/eventbus-hmac" ]; then
+    cp -f "$MTLS_DIR/eventbus-hmac" "$dir/eventbus-hmac"
+    chown "$short" "$dir/eventbus-hmac" 2>/dev/null || true
+    chmod 0640 "$dir/eventbus-hmac" 2>/dev/null || true
+  fi
+
   # Owner-only dir so another app's user can't list this app's mtls dir.
   chown "$short" "$dir" 2>/dev/null || true
   chmod 0750 "$dir" 2>/dev/null || true
