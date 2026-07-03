@@ -51,10 +51,11 @@ class EnableMtls extends Action
         $locationSnippet = $this->view('scripts.vhost-mtls-location', [])->render();
 
         // fastcgi_param SSL_CLIENT_* → PHP: passes the verified client identity (DN)
-        // to the app so it can bind the mTLS CN to the envelope's source_app. Must live
-        // INSIDE `location ~ \.php$` (nginx does not inherit fastcgi_param into a block
-        // that defines its own), hence the dedicated `php` block regenerate + append.
-        $phpSnippet = $this->view('scripts.vhost-mtls-php', [])->render();
+        // to the app so it can bind the mTLS CN to the envelope's source_app. Rendered
+        // as a `location = /index.php` block (exact match beats the stock `~ \.php$`
+        // regex) because fastcgi_param is not inherited into a location that defines
+        // its own — loose params appended at server level would never reach PHP.
+        $phpSnippet = $this->view('scripts.vhost-mtls-php', ['site' => $this->site])->render();
 
         // Regenerate the affected blocks to stock first (idempotent re-enable), then
         // append the server-level TLS + client-verify directives, the /internal/
