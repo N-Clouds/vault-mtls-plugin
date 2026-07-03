@@ -145,6 +145,9 @@ class ManageCns extends Action
                 continue;
             }
             $short = explode('.', $cn)[0];
+            // Defense-in-depth: strip anything that isn't a hostname label char before this value
+            // reaches a shell command / file path, even if validate() were bypassed (audit H1).
+            $short = preg_replace('/[^A-Za-z0-9-]/', '', $short);
             $short = $short !== '' ? $short : 'service';
             $cns[] = [
                 'cn' => $cn,
@@ -175,7 +178,9 @@ class ManageCns extends Action
     private function validate(Request $request): void
     {
         Validator::make($request->all(), [
-            'app_cns' => ['required', 'string'],
+            // Same hostname-only restriction as Install Agent — the CN list is rendered into a
+            // root shell command and file paths (audit H1).
+            'app_cns' => ['required', 'string', 'regex:/^[A-Za-z0-9.\-,\s]+$/'],
         ])->validate();
     }
 }

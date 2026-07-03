@@ -11,6 +11,8 @@ use Illuminate\Support\Facades\Validator;
 
 class RotateSecretId extends Action
 {
+    use HardensSecretWrites;
+
     private const AGENT_DIR = '/etc/vault-agent';
 
     private const DAEMON_NAME = 'vault-agent';
@@ -36,6 +38,9 @@ class RotateSecretId extends Action
 
         $ssh->write(self::AGENT_DIR.'/secret_id', $secretId."\n", 'root');
         $ssh->exec('sudo chmod 600 '.self::AGENT_DIR.'/secret_id', 'vault-mtls-rotate-chmod');
+
+        // H2 mitigation: strip world-readability from Vito's leftover /tmp secret_id intermediate.
+        $this->neutralizeSecretTemps($ssh);
 
         $daemon = $this->daemon();
         if ($daemon instanceof Worker) {

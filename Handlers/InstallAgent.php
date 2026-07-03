@@ -12,6 +12,8 @@ use Illuminate\Support\Facades\Validator;
 
 class InstallAgent extends Action
 {
+    use HardensSecretWrites;
+
     private const VIEW_NAMESPACE = 'vault-mtls';
 
     private const AGENT_DIR = '/etc/vault-agent';
@@ -74,6 +76,10 @@ class InstallAgent extends Action
 
         $ssh->write(self::AGENT_DIR.'/secret_id', $secretId."\n", 'root');
         $ssh->exec('sudo chmod 600 '.self::AGENT_DIR.'/secret_id', 'vault-mtls-chmod-secretid');
+
+        // H2 mitigation: strip world-readability from the /tmp intermediates Vito left behind
+        // for the role_id/secret_id writes above (Vito core leaks them at 0644, see the trait).
+        $this->neutralizeSecretTemps($ssh);
 
         // 3. Agent HCL config (rendered Blade view).
         $hcl = $this->view('scripts.agent-hcl', [
@@ -143,6 +149,9 @@ class InstallAgent extends Action
                 continue;
             }
             $short = explode('.', $cn)[0];
+            // Defense-in-depth: strip anything that isn't a hostname label char before this value
+            // reaches a shell command / file path, even if validate() were bypassed (audit H1).
+            $short = preg_replace('/[^A-Za-z0-9-]/', '', $short);
             $short = $short !== '' ? $short : 'service';
             $cns[] = [
                 'cn' => $cn,
@@ -198,11 +207,19 @@ class InstallAgent extends Action
     private function validate(Request $request): void
     {
         Validator::make($request->all(), [
-            'vault_addr' => ['required', 'string', 'starts_with:https://,http://'],
+            // Rendered into agent.hcl `address = "..."` and grep'd back later — restrict to a
+            // URL shape so no quotes/newlines/shell chars can be injected (audit M7).
+            'vault_addr' => ['required', 'string', 'starts_with:https://,http://', 'regex:/^https?:\/\/[A-Za-z0-9.\-]+(:\d+)?\/?$/'],
             'ad_root_ca' => ['required', 'string'],
-            'role_id' => ['required', 'string'],
-            'secret_id' => ['required', 'string'],
-            'app_cns' => ['required', 'string'],
+            'role_id'    => ['required', 'string'],
+            'secret_id'  => ['required', 'string'],
+            // CN list is interpolated into a shell command the vault-agent runs AS ROOT on every
+            // rotation (agent.hcl `command`) and into file paths. Restrict to hostname characters
+            // so no shell metacharacters (; $ () backtick |) or path separators (/) survive —
+            // closes the stored root command-injection + path traversal (audit H1).
+            'app_cns'      => ['required', 'string', 'regex:/^[A-Za-z0-9.\-,\s]+$/'],
+            // Interpolated into the agent template `{{ with secret "..." }}` — KV path chars only (M7).
+            'hmac_kv_path' => ['nullable', 'string', 'regex:/^[A-Za-z0-9._\/-]+$/'],
         ])->validate();
     }
 }
