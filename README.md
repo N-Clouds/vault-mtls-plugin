@@ -23,8 +23,9 @@ On run it SSHes to the server (as root via `sudo`) and:
 0. Installs the Vault binary if missing, via HashiCorp's official apt repository
    (rendered from `views/scripts/install-vault.blade.php`), then disables the
    bundled `vault` server service (we run only `vault agent`). Idempotent.
-1. Creates `/etc/vault-agent`, `/etc/nginx/mtls`, `/run/vault-agent`
-   (rendered from `views/scripts/install-agent.blade.php`).
+1. Creates `/etc/vault-agent`, `/etc/nginx/mtls`, `/run/vault-agent` and writes
+   `/etc/tmpfiles.d/vault-agent.conf` so systemd recreates `/run/vault-agent`
+   (tmpfs!) on every boot (rendered from `views/scripts/install-agent.blade.php`).
 2. Writes `ad-root-ca.pem` (0644), `role_id` (0600), `secret_id` (0600).
 3. Renders `views/scripts/agent-hcl.blade.php` and writes it to
    `/etc/vault-agent/agent.hcl`:
@@ -190,5 +191,12 @@ into your nginx provisioning or a post-render hook if required.
   writable by it.
 - Certificate `ttl` is fixed at `72h`; adjust in `views/scripts/agent-hcl.blade.php`
   if your PKI role enforces a different max TTL.
-- The token sink `/run/vault-agent/token` lives on tmpfs and is recreated on boot;
-  the daemon (`auto_restart = true`) re-auths automatically.
+- The token sink `/run/vault-agent/token` lives on tmpfs. The **directory** is
+  recreated on boot via `/etc/tmpfiles.d/vault-agent.conf` (written by Install
+  Agent). Without that entry the agent dies at startup after a reboot
+  (`error creating file sink: ... no such file or directory`), supervisor stops
+  retrying (FATAL after a few attempts), rotation stops, and the 72h certs
+  expire ~3 days later — internal HTTPS callers then fail with
+  `cURL error 60: certificate has expired`. Recovery:
+  `mkdir -p /run/vault-agent && chmod 700 /run/vault-agent`, then restart the
+  `vault-agent` daemon (Vito → Daemons, or `supervisorctl restart`).

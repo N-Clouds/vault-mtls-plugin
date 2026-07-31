@@ -16,4 +16,10 @@ location = /index.php {
     fastcgi_hide_header X-Powered-By;
     fastcgi_param SSL_CLIENT_VERIFY $ssl_client_verify;
     fastcgi_param SSL_CLIENT_S_DN   $ssl_client_s_dn;
+    # Laravel responses behind SSO can exceed nginx's page-sized default
+    # fastcgi_buffer_size (4k) with headers alone (session + XSRF + Keycloak
+    # state cookies, CSP) → "upstream sent too big header" 502 on /login.
+    fastcgi_buffer_size 32k;
+    fastcgi_buffers 32 16k;
+    fastcgi_busy_buffers_size 64k;
 }

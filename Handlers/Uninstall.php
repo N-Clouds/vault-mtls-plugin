@@ -38,6 +38,7 @@ class Uninstall extends Action
         /** @var SSH $ssh */
         $ssh = $this->server->ssh();
         $ssh->exec('sudo rm -rf '.self::AGENT_DIR, 'vault-mtls-uninstall-rm');
+        $ssh->exec('sudo rm -f /etc/tmpfiles.d/vault-agent.conf', 'vault-mtls-uninstall-tmpfiles');
 
         $request->session()->flash('success', 'Vault Agent uninstalled. /etc/nginx/mtls was left in place.');
     }
