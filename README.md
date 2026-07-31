@@ -12,12 +12,21 @@ Registers a server feature `vault-mtls` ("Vault mTLS") with three actions.
 
 ### Install Agent (`install-agent`)
 Form fields:
-- `vault_addr` (text, default `https://vault.example.local`)
+- `vault_addr` (text, e.g. `https://vault.example.local:8200`)
 - `ad_root_ca` (textarea) — PEM of the AD Root CA (agent `ca_cert` to trust Vault)
 - `role_id` (text) — Vault AppRole role_id
 - `secret_id` (password) — Vault AppRole secret_id
 - `app_cns` (textarea) — newline/comma-separated service hostnames
   (e.g. `service1.example.local`)
+- `hmac_kv_path` (text, optional) — Vault KV v2 path for the event-bus HMAC secret
+
+**Re-install semantics:** if `agent.hcl` already exists on the host, every field
+left empty reuses what is already there — `vault_addr`, the CN list and the HMAC
+KV path are read back out of `agent.hcl`; `ad-root-ca.pem` / `role_id` /
+`secret_id` are simply left untouched. Rolling out plugin/script fixes is thus
+"open Install Agent, submit empty, done". `hmac_kv_path` accepts `-` to
+explicitly remove the HMAC template. On a **first** install all fields except
+`hmac_kv_path` are mandatory (enforced with a clear validation error).
 
 On run it SSHes to the server (as root via `sudo`) and:
 0. Installs the Vault binary if missing, via HashiCorp's official apt repository

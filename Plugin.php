@@ -40,31 +40,31 @@ class Plugin extends AbstractPlugin
                 DynamicField::make('vault_addr')
                     ->text()
                     ->label('Vault address')
-                    ->default('https://vault.example.local:8200')
-                    ->description('Base URL of the Vault server the agent authenticates against. Include the API port — Vault listens on 8200. If you omit the port, :8200 is assumed (an explicit port such as :443 for an nginx TLS proxy is respected).'),
+                    ->placeholder('https://vault.example.local:8200')
+                    ->description('Base URL of the Vault server the agent authenticates against. Include the API port — Vault listens on 8200. If you omit the port, :8200 is assumed (an explicit port such as :443 for an nginx TLS proxy is respected). Re-install: leave empty to reuse the address already configured on the host.'),
                 DynamicField::make('ad_root_ca')
                     ->textarea()
                     ->label('AD Root CA (PEM)')
                     ->placeholder("-----BEGIN CERTIFICATE-----\n...")
-                    ->description('PEM of the AD Root CA. Used as the agent ca_cert to trust Vault, and referenced for the nginx client-verify bundle.'),
+                    ->description('PEM of the AD Root CA. Used as the agent ca_cert to trust Vault, and referenced for the nginx client-verify bundle. Re-install: leave empty to keep the CA file already on the host.'),
                 DynamicField::make('role_id')
                     ->text()
                     ->label('AppRole role_id')
-                    ->description('Vault AppRole role_id used for auto-auth.'),
+                    ->description('Vault AppRole role_id used for auto-auth. Re-install: leave empty to keep the existing file.'),
                 DynamicField::make('secret_id')
                     ->password()
                     ->label('AppRole secret_id')
-                    ->description('Vault AppRole secret_id. Stored at /etc/vault-agent/secret_id (chmod 600).'),
+                    ->description('Vault AppRole secret_id. Stored at /etc/vault-agent/secret_id (chmod 600). Re-install: leave empty to keep the existing file.'),
                 DynamicField::make('app_cns')
                     ->textarea()
                     ->label('Service common names')
                     ->placeholder("service1.example.local\nservice2.example.local")
-                    ->description('Newline- or comma-separated list of service hostnames. One certificate is issued and auto-renewed per CN.'),
+                    ->description('Newline- or comma-separated list of service hostnames. One certificate is issued and auto-renewed per CN. Re-install: leave empty to keep the current CN list from agent.hcl.'),
                 DynamicField::make('hmac_kv_path')
                     ->text()
                     ->label('Event-bus HMAC KV path (optional)')
                     ->placeholder('secret/data/eventbus/hmac')
-                    ->description('Leave empty to skip. If set, the agent also renders the event-bus HMAC signing secret from this Vault KV v2 path to /etc/nginx/mtls/eventbus-hmac (mirrored into each app HOME). The AppRole policy must allow read on this path.'),
+                    ->description('If set, the agent also renders the event-bus HMAC signing secret from this Vault KV v2 path to /etc/nginx/mtls/eventbus-hmac (mirrored into each app HOME). The AppRole policy must allow read on this path. Re-install: leave empty to keep the current setting, enter "-" to remove it. First install: leave empty to skip.'),
             ]))
             ->handler(InstallAgent::class)
             ->register();
