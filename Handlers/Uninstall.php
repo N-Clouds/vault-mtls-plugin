@@ -6,6 +6,7 @@ use App\Actions\Worker\DeleteWorker;
 use App\Helpers\SSH;
 use App\Models\Worker;
 use App\ServerFeatures\Action;
+use App\Vito\Plugins\NClouds\VaultMtlsPlugin\Zustand;
 use Illuminate\Http\Request;
 
 class Uninstall extends Action
@@ -39,6 +40,11 @@ class Uninstall extends Action
         $ssh = $this->server->ssh();
         $ssh->exec('sudo rm -rf '.self::AGENT_DIR, 'vault-mtls-uninstall-rm');
         $ssh->exec('sudo rm -f /etc/tmpfiles.d/vault-agent.conf', 'vault-mtls-uninstall-tmpfiles');
+
+        // Zuletzt der Zustand in Vito. Bliebe er stehen, meldete ein spaeterer
+        // "Install Agent" eine Wiederinstallation und uebernaehme CN-Liste und
+        // KV-Pfad eines Agents, den es nicht mehr gibt.
+        Zustand::entfernen($this->server);
 
         $request->session()->flash('success', 'Vault Agent uninstalled. /etc/nginx/mtls was left in place.');
     }

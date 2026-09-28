@@ -1,10 +1,36 @@
+# HA-Cluster: `address` MUSS der Cluster-Endpunkt sein (Lastverteiler bzw. der
+# `active`-Name), nicht ein einzelner Knoten. Zeigt sie auf einen Knoten, redet der
+# Agent nach einer Leader-Wahl mit einem Standby — der antwortet auf Schreibpfade mit
+# 307 auf den aktiven Knoten, und ohne Weiterverfolgung bleibt das Rendern stehen.
+#
+# `retry` ausdruecklich gesetzt statt auf die Vorgabe zu vertrauen: Waehrend einer
+# Leader-Wahl ist der Cluster kurz nicht schreibfaehig. Ohne Wiederholung endet der
+# Agent, die Zertifikate laufen aus und `eventbus-hmac` wird nicht mehr erneuert —
+# und beides faellt erst Tage spaeter auf.
 vault {
   address = "{{ $vaultAddr }}"
   ca_cert = "{{ $agentDir }}/ad-root-ca.pem"
+
+  retry {
+    num_retries = 12
+  }
+}
+
+# Nicht beenden, wenn das Rendern einer Vorlage scheitert. Im HA-Betrieb ist ein
+# Fehlschlag der Normalfall (Leader-Wahl, kurzer Ausfall eines Knotens) und kein Grund,
+# den Dienst zu verlassen — Supervisor wuerde ihn ohnehin nur neu starten, und dabei
+# ginge der bereits geholte Token verloren.
+template_config {
+  exit_on_retry_failure = false
 }
 
 auto_auth {
   method "approle" {
+    # Anmeldung ebenfalls mit Rueckhalt: Ist der Cluster beim Start gerade in der
+    # Wahl, soll der Agent warten statt aufzugeben.
+    min_backoff = "1s"
+    max_backoff = "5m"
+
     config = {
       role_id_file_path                   = "{{ $agentDir }}/role_id"
       secret_id_file_path                 = "{{ $agentDir }}/secret_id"

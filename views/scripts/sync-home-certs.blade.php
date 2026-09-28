@@ -21,26 +21,35 @@ sync_app() {
   id "$short" >/dev/null 2>&1 || return 0   # no such OS user → skip
   [ -d "$home" ] || return 0
 
-  mkdir -p "$dir" || return 0
+  # `install -d` setzt Eigentuemer und Modus BEIM Anlegen. Ein `mkdir -p` mit
+  # nachtraeglichem chmod liesse das Verzeichnis bis dahin mit der Umask der Wurzel
+  # stehen (meist 0755) — in diesem Fenster koennte ein fremder App-Benutzer
+  # auflisten, welche Dateien hier liegen.
+  install -d -m 0750 -o "$short" "$dir" 2>/dev/null || mkdir -p "$dir" || return 0
 
   if [ -f "$MTLS_DIR/$short.pem" ]; then
-    cp -f "$MTLS_DIR/$short.pem" "$dir/$short.pem"
-    chown "$short" "$dir/$short.pem" 2>/dev/null || true
-    chmod 0640 "$dir/$short.pem" 2>/dev/null || true
+    # Client-Zertifikat, enthaelt den privaten Schluessel. Modus BEIM Anlegen, nicht danach: Zwischen `cp` und `chmod`
+    # stuende die Datei mit der Umask der Wurzel da (meist 0644). Bei einem
+    # Geheimnis ist das ein Lesefenster fuer jeden lokalen Benutzer — und es
+    # wiederholt sich bei JEDER Rotation.
+    install -m 0640 -o "$short" "$MTLS_DIR/$short.pem" "$dir/$short.pem" 2>/dev/null || true
   fi
 
   if [ -f "$MTLS_DIR/ca-bundle.pem" ]; then
-    cp -f "$MTLS_DIR/ca-bundle.pem" "$dir/ca-bundle.pem"
-    chown "$short" "$dir/ca-bundle.pem" 2>/dev/null || true
-    chmod 0644 "$dir/ca-bundle.pem" 2>/dev/null || true
+    # CA-Bundle, oeffentlich (0644) — hier geht es nicht um Geheimhaltung, sondern
+    # um Einheitlichkeit: derselbe Aufruf wie oben, damit nicht eine Datei anders
+    # entsteht als die andere.
+    install -m 0644 -o "$short" "$MTLS_DIR/ca-bundle.pem" "$dir/ca-bundle.pem" 2>/dev/null || true
   fi
 
   # Event-bus HMAC secret (present only when the KV template is enabled). Secret →
   # owner-readable only (0640), like the client cert.
   if [ -f "$MTLS_DIR/eventbus-hmac" ]; then
-    cp -f "$MTLS_DIR/eventbus-hmac" "$dir/eventbus-hmac"
-    chown "$short" "$dir/eventbus-hmac" 2>/dev/null || true
-    chmod 0640 "$dir/eventbus-hmac" 2>/dev/null || true
+    # HMAC-Geheimnis der Plattform. Modus BEIM Anlegen, nicht danach: Zwischen `cp` und `chmod`
+    # stuende die Datei mit der Umask der Wurzel da (meist 0644). Bei einem
+    # Geheimnis ist das ein Lesefenster fuer jeden lokalen Benutzer — und es
+    # wiederholt sich bei JEDER Rotation.
+    install -m 0640 -o "$short" "$MTLS_DIR/eventbus-hmac" "$dir/eventbus-hmac" 2>/dev/null || true
   fi
 
   # Owner-only dir so another app's user can't list this app's mtls dir.

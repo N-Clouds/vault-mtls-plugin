@@ -1,0 +1,56 @@
+# BEGIN vault-mtls — managed by the Vault mTLS plugin (site feature "mTLS /internal"); do not edit manually.
+# Injected at RUNTIME by LaravelMtls::vhostTemplate() before the closing brace of the server
+# block, on EVERY vhost generation — so this follows Vito's core template automatically
+# instead of freezing a copy in site.vhost_template (the pre-09/2026 mechanism).
+# TLS + client-verify point at the agent-managed cert files under /etc/nginx/mtls
+# (NOT Vito's SSL model). Port 80 (Plesk reverse proxy) stays intact.
+{{^listen_443}}
+listen 443 ssl;
+listen [::]:443 ssl;
+{{/listen_443}}
+ssl_certificate __CERT_PATH__;
+ssl_certificate_key __CERT_PATH__;
+ssl_client_certificate __CA_BUNDLE_PATH__;
+ssl_verify_client optional;
+ssl_verify_depth 2;
+
+# client_max_body_size stands deliberately NOT here. Vito emits it at SERVER level
+# (vhost.mustache line 65) and server-level directives ARE inherited into every location.
+# Since 09/2026 site.vhost_template stays null — the template comes from the site type —
+# so phpEnabled is true again and Vito's PHP-settings-derived directives are live.
+# Emitting our own would duplicate the directive and nginx would refuse to start.
+
+# /internal/* requires a verified client certificate; everything else stays public.
+location /internal/ {
+    if ($ssl_client_verify != SUCCESS) { return 403; }
+    try_files $uri $uri/ /index.php?$query_string;
+}
+
+# Exact-match location wins over the stock `location ~ \.php$` regex regardless of order,
+# and try_files rewrites every Laravel request to /index.php — so ALL app traffic passes
+# through here, with the verified client identity attached. fastcgi_param lines outside a
+# location are NOT inherited into one that defines its own, which is why this must be a
+# full location block — and why PHP_VALUE and fastcgi_read_timeout have to be repeated:
+# Vito sets both inside its own `location ~ \.php$`, which this location shadows.
+location = /index.php {
+    fastcgi_pass {{php_socket}};
+    fastcgi_param SCRIPT_FILENAME $realpath_root$fastcgi_script_name;
+    include fastcgi_params;
+    fastcgi_hide_header X-Powered-By;
+    fastcgi_param SSL_CLIENT_VERIFY $ssl_client_verify;
+    fastcgi_param SSL_CLIENT_S_DN   $ssl_client_s_dn;
+    # Laravel responses behind SSO can exceed nginx's page-sized default fastcgi_buffer_size
+    # (4k) with headers alone (session + XSRF + Keycloak state cookies, CSP) → "upstream
+    # sent too big header" 502 on /login.
+    fastcgi_buffer_size 32k;
+    fastcgi_buffers 32 16k;
+    fastcgi_busy_buffers_size 64k;
+    # VITOS EIGENE Platzhalter, wortgleich zu dem, was es in `location ~ \.php$` setzt.
+    # Der Token wird global über den gerenderten vhost ersetzt
+    # (AbstractGenerateConfig::generate → str_replace(PHP_VALUE_TOKEN, php_value_string)),
+    # die Werte bleiben also die aus Vitos PHP-Einstellungen — keine zweite Umsetzung,
+    # keine Abhängigkeit von den type_data.php.*-Schlüsselnamen mehr.
+    {{#php_value}}fastcgi_param PHP_VALUE "@@VITO_PHP_VALUE@@";{{/php_value}}
+    {{#fastcgi_read_timeout}}fastcgi_read_timeout {{fastcgi_read_timeout}};{{/fastcgi_read_timeout}}
+}
+# END vault-mtls

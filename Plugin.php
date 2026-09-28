@@ -16,6 +16,8 @@ use App\Vito\Plugins\NClouds\VaultMtlsPlugin\Handlers\InstallAgent;
 use App\Vito\Plugins\NClouds\VaultMtlsPlugin\Handlers\ManageCns;
 use App\Vito\Plugins\NClouds\VaultMtlsPlugin\Handlers\RotateSecretId;
 use App\Vito\Plugins\NClouds\VaultMtlsPlugin\Handlers\Uninstall;
+use App\Vito\Plugins\NClouds\VaultMtlsPlugin\SiteTypes\LaravelMtls;
+use RuntimeException;
 
 class Plugin extends AbstractPlugin
 {
@@ -41,7 +43,7 @@ class Plugin extends AbstractPlugin
                     ->text()
                     ->label('Vault address')
                     ->placeholder('https://vault.example.local:8200')
-                    ->description('Base URL of the Vault server the agent authenticates against. Include the API port — Vault listens on 8200. If you omit the port, :8200 is assumed (an explicit port such as :443 for an nginx TLS proxy is respected). Re-install: leave empty to reuse the address already configured on the host.'),
+                    ->description('HA-Cluster: der CLUSTER-Endpunkt (Lastverteiler bzw. der `active`-Name), NICHT ein einzelner Knoten — nach einer Leader-Wahl redet der Agent sonst mit einem Standby. Base URL of the Vault server the agent authenticates against. Include the API port — Vault listens on 8200. If you omit the port, :8200 is assumed (an explicit port such as :443 for an nginx TLS proxy is respected). Re-install: leave empty to reuse the address already configured on the host.'),
                 DynamicField::make('ad_root_ca')
                     ->textarea()
                     ->label('AD Root CA (PEM)')
@@ -102,24 +104,44 @@ class Plugin extends AbstractPlugin
         // via the Plesk reverse proxy) keeps working. TLS + mTLS point at the
         // agent-managed cert files under /etc/nginx/mtls (NOT Vito's SSL model).
         // Registered for the 'laravel' site type, mirroring core Modern Deployment.
+        // The forms live on the handlers (form() method) because their fields depend
+        // on per-site state (vhost_generation_enabled for v3-migrated sites).
+        /*
+         | Vitos `laravel`-Typ um die vhost-Ableitung erweitern.
+         |
+         | NICHT ueber RegisterSiteType: Das ersetzt den GANZEN Eintrag, also auch
+         | Beschriftung und Anlegen-Formular. Vitos Formular hat sieben Felder
+         | (PHP-Fassung, Source Control, Web Directory, Repository, Branch, composer,
+         | Paketverwalter) — eine Kopie davon hier wuerde bei jedem Vito-Update
+         | driften, und der Anlegen-Dialog verloere still Felder.
+         |
+         | Stattdessen wird genau EIN Feld getauscht: der Handler. Das ist derselbe
+         | Config-Schluessel, den RegisterSiteType schreibt.
+         |
+         | Reihenfolge stimmt: Vitos SiteTypeServiceProvider::boot() registriert
+         | `laravel`, BootPlugins laeuft in app->booted() und damit danach.
+         |
+         | Wird das Plugin deaktiviert, faellt `laravel` auf Vitos eigenen Handler
+         | zurueck — Sites laufen weiter, nur ohne mTLS-vhost. Genau deshalb kein
+         | eigener Typ: der waere nach dem Deaktivieren nicht mehr aufloesbar, und
+         | dann wirft die gesamte Sites-Liste 500.
+         */
+        if (config('site.types.laravel') === null) {
+            throw new RuntimeException(
+                'Vito hat keinen Site-Typ "laravel" registriert — das Plugin kann seine '
+                .'vhost-Ableitung nicht einhaengen. Vito-Fassung pruefen.',
+            );
+        }
+
+        config(['site.types.laravel.handler' => LaravelMtls::class]);
+
         RegisterSiteFeature::make('laravel', 'mtls-internal')
             ->label('mTLS /internal')
-            ->description('Require a valid client certificate for /internal/* using the agent-issued certs under /etc/nginx/mtls. Keeps port 80 (Plesk reverse proxy) intact.')
+            ->description('Require a valid client certificate for /internal/* using the agent-issued certs under /etc/nginx/mtls. Installs a custom vhost template; keeps port 80 (Plesk reverse proxy) intact.')
             ->register();
 
         RegisterSiteFeatureAction::make('laravel', 'mtls-internal', 'enable')
             ->label('Enable')
-            ->form(DynamicForm::make([
-                DynamicField::make('cert_name')
-                    ->text()
-                    ->label('Cert name')
-                    ->description('Base name of the agent-issued cert under /etc/nginx/mtls (defaults to the first DNS label of the site domain), e.g. `service1` → /etc/nginx/mtls/service1.pem'),
-                DynamicField::make('ca_bundle_path')
-                    ->text()
-                    ->label('CA bundle path')
-                    ->default('/etc/nginx/mtls/ca-bundle.pem')
-                    ->description('Path to the CA bundle nginx uses to verify client certificates (ssl_client_certificate).'),
-            ]))
             ->handler(EnableMtls::class)
             ->register();
 

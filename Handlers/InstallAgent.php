@@ -3,9 +3,11 @@
 namespace App\Vito\Plugins\NClouds\VaultMtlsPlugin\Handlers;
 
 use App\Actions\Worker\CreateWorker;
+use App\Actions\Worker\DeleteWorker;
 use App\Helpers\SSH;
 use App\Models\Worker;
 use App\ServerFeatures\Action;
+use App\Vito\Plugins\NClouds\VaultMtlsPlugin\Zustand;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
@@ -13,8 +15,6 @@ use Illuminate\Validation\ValidationException;
 
 class InstallAgent extends Action
 {
-    use HardensSecretWrites;
-
     private const VIEW_NAMESPACE = 'vault-mtls';
 
     private const AGENT_DIR = '/etc/vault-agent';
@@ -105,8 +105,8 @@ class InstallAgent extends Action
 
         // 2. Trust material + AppRole credentials (secret files chmod 600). Files whose
         // form field was left empty on a re-install stay untouched on the host.
-        $wroteSecret = false;
-
+        // (Vito 4.x uploads SSH::write intermediates with chmod 600 and deletes them,
+        // so the v3 HardensSecretWrites mitigation is no longer needed.)
         if (trim($adRootCa) !== '') {
             $ssh->write(self::AGENT_DIR.'/ad-root-ca.pem', $adRootCa, 'root');
             $ssh->exec('sudo chmod 644 '.self::AGENT_DIR.'/ad-root-ca.pem', 'vault-mtls-chmod-ca');
@@ -115,19 +115,11 @@ class InstallAgent extends Action
         if ($roleId !== '') {
             $ssh->write(self::AGENT_DIR.'/role_id', $roleId."\n", 'root');
             $ssh->exec('sudo chmod 600 '.self::AGENT_DIR.'/role_id', 'vault-mtls-chmod-roleid');
-            $wroteSecret = true;
         }
 
         if ($secretId !== '') {
             $ssh->write(self::AGENT_DIR.'/secret_id', $secretId."\n", 'root');
             $ssh->exec('sudo chmod 600 '.self::AGENT_DIR.'/secret_id', 'vault-mtls-chmod-secretid');
-            $wroteSecret = true;
-        }
-
-        // H2 mitigation: strip world-readability from the /tmp intermediates Vito left behind
-        // for the role_id/secret_id writes above (Vito core leaks them at 0644, see the trait).
-        if ($wroteSecret) {
-            $this->neutralizeSecretTemps($ssh);
         }
 
         // 3. Agent HCL config (rendered Blade view).
@@ -158,12 +150,26 @@ class InstallAgent extends Action
         // re-runs it on the next render anyway).
         $ssh->exec('sudo '.self::AGENT_DIR.'/sync-home-certs.sh || true', 'vault-mtls-sync-home');
 
-        // 4. (Re)create the vault-agent daemon (Worker with site_id = null).
+        // 4. (Re)create the vault-agent daemon (Worker with site_id = null). Deletion is
+        // synchronous (supervisor program removed in the Worker deleting event); creation
+        // is queued by Vito 4.x on the ssh queue, so the daemon appears as CREATING first.
         $existing = $this->existingDaemon();
         if ($existing) {
-            // Idempotent re-install: remove the old daemon before recreating with fresh config.
-            $existing->delete();
+            app(DeleteWorker::class)->delete($existing);
         }
+
+        /*
+         | Den Zustand in Vito festhalten, nicht in agent.hcl.
+         |
+         | Bis 09/2026 war die geschriebene Datei der einzige Speicher, und
+         | ManageCns las sie per grep zurueck — einer der Anker war ein
+         | Kommentartext. Siehe Zustand.
+         */
+        Zustand::schreiben($this->server, [
+            'vault_addr'   => $vaultAddr,
+            'cns'          => array_column($cns, 'cn'),
+            'hmac_kv_path' => $hmacKvPath,
+        ]);
 
         app(CreateWorker::class)->create($this->server, [
             'name' => self::DAEMON_NAME,
@@ -174,7 +180,7 @@ class InstallAgent extends Action
             'numprocs' => 1,
         ]);
 
-        $request->session()->flash('success', 'Vault Agent installed and daemon (re)created.');
+        $request->session()->flash('success', 'Vault Agent installed — daemon (re)creation queued, check Daemons for status.');
     }
 
     private function existingDaemon(): ?Worker
@@ -200,17 +206,7 @@ class InstallAgent extends Action
      */
     private function readVaultAddr(SSH $ssh): string
     {
-        $out = $ssh->exec(
-            "sudo grep -oP 'address\\s*=\\s*\"\\K[^\"]+' ".self::AGENT_DIR.'/agent.hcl 2>/dev/null | head -n1 || true',
-            'vault-mtls-read-addr'
-        );
-
-        $addr = trim($out);
-        if ($addr === '') {
-            $this->missing('vault_addr', 'Vault address');
-        }
-
-        return $addr;
+        return Zustand::lesen($this->server)['vault_addr'];
     }
 
     /**
@@ -219,14 +215,18 @@ class InstallAgent extends Action
      *
      * @return array<int, array{cn: string, short: string, home: string}>
      */
+    /**
+     * Die CN-Liste dieses Servers, in der Form, die die Vorlagen brauchen.
+     *
+     * Der Zustand liegt in Vito ({@see Zustand}); `parseCns()` macht daraus wieder
+     * `cn`/`short`/`home` und saeubert das Kuerzel, bevor es in Shell-Befehle und
+     * Dateipfade geht.
+     *
+     * @return array<int, array{cn: string, short: string, home: string}>
+     */
     private function readCns(SSH $ssh): array
     {
-        $out = $ssh->exec(
-            "sudo grep -oP 'common_name=\\K[^\"]+' ".self::AGENT_DIR.'/agent.hcl 2>/dev/null || true',
-            'vault-mtls-read-cns'
-        );
-
-        return $this->parseCns($out);
+        return $this->parseCns(implode(' ', Zustand::lesen($this->server)['cns']));
     }
 
     /**
@@ -235,12 +235,7 @@ class InstallAgent extends Action
      */
     private function readHmacKvPath(SSH $ssh): string
     {
-        $out = $ssh->exec(
-            "sudo grep -oP '# Event-bus HMAC signing secret from Vault KV \\(\\K[^)]+' ".self::AGENT_DIR.'/agent.hcl 2>/dev/null | head -n1 || true',
-            'vault-mtls-read-hmac-path'
-        );
-
-        return trim($out);
+        return Zustand::lesen($this->server)['hmac_kv_path'];
     }
 
     private function missing(string $field, string $label): never

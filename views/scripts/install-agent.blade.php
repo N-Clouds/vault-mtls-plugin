@@ -8,6 +8,10 @@ set -e
 sudo mkdir -p {{ $agentDir }} {{ $mtlsDir }} {{ $tokenDir }}
 sudo chmod 700 {{ $agentDir }}
 sudo chmod 700 {{ $tokenDir }}
+# {{ $mtlsDir }} ausdruecklich auf 0750: Die Dateien darin sind je Datei geschuetzt
+# (0640 aus agent.hcl), das VERZEICHNIS blieb aber auf der Umask-Vorgabe (meist 0755).
+# Damit konnte jeder lokale Benutzer auflisten, welche Dienst-CNs es auf dem Host gibt.
+sudo chmod 750 {{ $mtlsDir }}
 
 # {{ $tokenDir }} lives on /run (tmpfs) and vanishes on every reboot. Without this
 # tmpfiles.d entry the agent dies at startup after a reboot ("error creating file sink:

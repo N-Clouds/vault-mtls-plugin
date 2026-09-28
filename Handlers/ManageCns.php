@@ -6,6 +6,7 @@ use App\Actions\Worker\ManageWorker;
 use App\Helpers\SSH;
 use App\Models\Worker;
 use App\ServerFeatures\Action;
+use App\Vito\Plugins\NClouds\VaultMtlsPlugin\Zustand;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
@@ -85,6 +86,15 @@ class ManageCns extends Action
         $ssh->exec('sudo chmod 755 '.self::AGENT_DIR.'/sync-home-certs.sh', 'vault-mtls-chmod-sync');
 
         // Restart so the agent re-reads agent.hcl and issues the (new) certs.
+        // Die neue Liste ist der Zustand — vor dem Neustart festhalten, damit ein
+        // Fehlschlag beim Neustart nicht einen Zustand hinterlaesst, der nicht zur
+        // geschriebenen agent.hcl passt.
+        Zustand::schreiben($this->server, [
+            'vault_addr'   => $vaultAddr,
+            'cns'          => array_column($cns, 'cn'),
+            'hmac_kv_path' => $hmacKvPath,
+        ]);
+
         app(ManageWorker::class)->restart($daemon);
 
         $request->session()->flash('success', 'Service-Namen aktualisiert — Agent wird neu gestartet, Zertifikate werden neu ausgestellt.');
@@ -95,19 +105,15 @@ class ManageCns extends Action
      */
     private function readVaultAddr(SSH $ssh): string
     {
-        $out = $ssh->exec(
-            "sudo grep -oP 'address\\s*=\\s*\"\\K[^\"]+' ".self::AGENT_DIR.'/agent.hcl 2>/dev/null | head -n1 || true',
-            'vault-mtls-read-addr'
-        );
+        $adresse = Zustand::lesen($this->server)['vault_addr'];
 
-        $addr = trim($out);
-        if ($addr === '') {
+        if ($adresse === '') {
             throw ValidationException::withMessages([
-                'app_cns' => 'Konnte die Vault-Adresse nicht aus agent.hcl lesen — bitte einmal "Install Agent" ausführen.',
+                'app_cns' => 'Fuer diesen Server ist kein Vault-Agent eingerichtet — bitte einmal "Install Agent" ausfuehren.',
             ]);
         }
 
-        return $addr;
+        return $adresse;
     }
 
     /**
@@ -116,12 +122,7 @@ class ManageCns extends Action
      */
     private function readHmacKvPath(SSH $ssh): string
     {
-        $out = $ssh->exec(
-            "sudo grep -oP '# Event-bus HMAC signing secret from Vault KV \\(\\K[^)]+' ".self::AGENT_DIR.'/agent.hcl 2>/dev/null | head -n1 || true',
-            'vault-mtls-read-hmac-path'
-        );
-
-        return trim($out);
+        return Zustand::lesen($this->server)['hmac_kv_path'];
     }
 
     private function existingDaemon(): ?Worker
