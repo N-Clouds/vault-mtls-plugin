@@ -176,12 +176,25 @@ class EnableMtls extends Action
     }
 
     /**
+     * Liegt das Zertifikat wirklich schon da?
+     *
+     * Vorpruefung mit Grund: Ein `ssl_certificate` auf eine fehlende Datei laesst
+     * `nginx reload` scheitern und nimmt die Site mitsamt Port 80 vom Netz — also
+     * auch den oeffentlichen Verkehr ueber den Plesk-Proxy.
+     *
+     * **`sudo` ist Pflicht**, nicht Vorsicht: Seit 09/2026 legt `install-agent` das
+     * Verzeichnis mit 0750 root:root an (vorher blieb es auf der Umask-Vorgabe, meist
+     * 0755). `$server->ssh()` verbindet als Server-Benutzer, nicht als root — ohne
+     * `sudo` fehlt dem die Durchsuchrechte, `test -f` schlaegt fehl, und die Meldung
+     * behauptet, das Zertifikat fehle. Es ist dann da, nur unlesbar fuer den
+     * pruefenden Benutzer. `hasExistingInstall()` in InstallAgent macht es genauso.
+     *
      * @throws ValidationException
      */
     private function assertCertExists(SSH $ssh, string $certPath): void
     {
         $result = $ssh->exec(
-            'test -f '.escapeshellarg($certPath).' && echo VITO_CERT_PRESENT || echo VITO_CERT_MISSING',
+            'sudo test -f '.escapeshellarg($certPath).' && echo VITO_CERT_PRESENT || echo VITO_CERT_MISSING',
             'vault-mtls-preflight-cert',
             $this->site->id
         );
