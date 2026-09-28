@@ -31,73 +31,83 @@ class Plugin extends AbstractPlugin
             ->path(__DIR__.'/views')
             ->register();
 
-        RegisterServerFeature::make('vault-mtls')
-            ->label('Vault mTLS')
-            ->description('Install and manage a Vault Agent daemon that fetches short-lived PKI certificates for nginx client-certificate authentication.')
-            ->register();
+        if ($this->neu('server.features.vault-mtls')) {
+                RegisterServerFeature::make('vault-mtls')
+                ->label('Vault mTLS')
+                ->description('Install and manage a Vault Agent daemon that fetches short-lived PKI certificates for nginx client-certificate authentication.')
+                ->register();
+        }
 
-        RegisterServerFeatureAction::make('vault-mtls', 'install-agent')
-            ->label('Install Agent')
-            ->form(DynamicForm::make([
-                DynamicField::make('vault_addr')
-                    ->text()
-                    ->label('Vault address')
-                    ->placeholder('https://vault.example.local:8200')
-                    ->description('HA-Cluster: der CLUSTER-Endpunkt (Lastverteiler bzw. der `active`-Name), NICHT ein einzelner Knoten — nach einer Leader-Wahl redet der Agent sonst mit einem Standby. Base URL of the Vault server the agent authenticates against. Include the API port — Vault listens on 8200. If you omit the port, :8200 is assumed (an explicit port such as :443 for an nginx TLS proxy is respected). Re-install: leave empty to reuse the address already configured on the host.'),
-                DynamicField::make('ad_root_ca')
-                    ->textarea()
-                    ->label('AD Root CA (PEM)')
-                    ->placeholder("-----BEGIN CERTIFICATE-----\n...")
-                    ->description('PEM of the AD Root CA. Used as the agent ca_cert to trust Vault, and referenced for the nginx client-verify bundle. Re-install: leave empty to keep the CA file already on the host.'),
-                DynamicField::make('role_id')
-                    ->text()
-                    ->label('AppRole role_id')
-                    ->description('Vault AppRole role_id used for auto-auth. Re-install: leave empty to keep the existing file.'),
-                DynamicField::make('secret_id')
-                    ->password()
-                    ->label('AppRole secret_id')
-                    ->description('Vault AppRole secret_id. Stored at /etc/vault-agent/secret_id (chmod 600). Re-install: leave empty to keep the existing file.'),
-                DynamicField::make('app_cns')
-                    ->textarea()
-                    ->label('Service common names')
-                    ->placeholder("service1.example.local\nservice2.example.local")
-                    ->description('Newline- or comma-separated list of service hostnames. One certificate is issued and auto-renewed per CN. Re-install: leave empty to keep the current CN list from agent.hcl.'),
-                DynamicField::make('hmac_kv_path')
-                    ->text()
-                    ->label('Event-bus HMAC KV path (optional)')
-                    ->placeholder('secret/data/eventbus/hmac')
-                    ->description('If set, the agent also renders the event-bus HMAC signing secret from this Vault KV v2 path to /etc/nginx/mtls/eventbus-hmac (mirrored into each app HOME). The AppRole policy must allow read on this path. Re-install: leave empty to keep the current setting, enter "-" to remove it. First install: leave empty to skip.'),
-            ]))
-            ->handler(InstallAgent::class)
-            ->register();
+        if ($this->neu('server.features.vault-mtls.actions.install-agent')) {
+                RegisterServerFeatureAction::make('vault-mtls', 'install-agent')
+                ->label('Install Agent')
+                ->form(DynamicForm::make([
+                    DynamicField::make('vault_addr')
+                        ->text()
+                        ->label('Vault address')
+                        ->placeholder('https://vault.example.local:8200')
+                        ->description('HA-Cluster: der CLUSTER-Endpunkt (Lastverteiler bzw. der `active`-Name), NICHT ein einzelner Knoten — nach einer Leader-Wahl redet der Agent sonst mit einem Standby. Base URL of the Vault server the agent authenticates against. Include the API port — Vault listens on 8200. If you omit the port, :8200 is assumed (an explicit port such as :443 for an nginx TLS proxy is respected). Re-install: leave empty to reuse the address already configured on the host.'),
+                    DynamicField::make('ad_root_ca')
+                        ->textarea()
+                        ->label('AD Root CA (PEM)')
+                        ->placeholder("-----BEGIN CERTIFICATE-----\n...")
+                        ->description('PEM of the AD Root CA. Used as the agent ca_cert to trust Vault, and referenced for the nginx client-verify bundle. Re-install: leave empty to keep the CA file already on the host.'),
+                    DynamicField::make('role_id')
+                        ->text()
+                        ->label('AppRole role_id')
+                        ->description('Vault AppRole role_id used for auto-auth. Re-install: leave empty to keep the existing file.'),
+                    DynamicField::make('secret_id')
+                        ->password()
+                        ->label('AppRole secret_id')
+                        ->description('Vault AppRole secret_id. Stored at /etc/vault-agent/secret_id (chmod 600). Re-install: leave empty to keep the existing file.'),
+                    DynamicField::make('app_cns')
+                        ->textarea()
+                        ->label('Service common names')
+                        ->placeholder("service1.example.local\nservice2.example.local")
+                        ->description('Newline- or comma-separated list of service hostnames. One certificate is issued and auto-renewed per CN. Re-install: leave empty to keep the current CN list from agent.hcl.'),
+                    DynamicField::make('hmac_kv_path')
+                        ->text()
+                        ->label('Event-bus HMAC KV path (optional)')
+                        ->placeholder('secret/data/eventbus/hmac')
+                        ->description('If set, the agent also renders the event-bus HMAC signing secret from this Vault KV v2 path to /etc/nginx/mtls/eventbus-hmac (mirrored into each app HOME). The AppRole policy must allow read on this path. Re-install: leave empty to keep the current setting, enter "-" to remove it. First install: leave empty to skip.'),
+                ]))
+                ->handler(InstallAgent::class)
+                ->register();
+        }
 
-        RegisterServerFeatureAction::make('vault-mtls', 'manage-cns')
-            ->label('Manage service names')
-            ->form(DynamicForm::make([
-                DynamicField::make('app_cns')
-                    ->textarea()
-                    ->label('Service common names')
-                    ->placeholder("service1.example.local\nservice2.example.local")
-                    ->description('Vollständige Liste (ersetzt die bestehende). Vault-Adresse, AD Root CA und AppRole-Credentials werden vom Host wiederverwendet — kein erneutes Eintragen nötig.'),
-            ]))
-            ->handler(ManageCns::class)
-            ->register();
+        if ($this->neu('server.features.vault-mtls.actions.manage-cns')) {
+                RegisterServerFeatureAction::make('vault-mtls', 'manage-cns')
+                ->label('Manage service names')
+                ->form(DynamicForm::make([
+                    DynamicField::make('app_cns')
+                        ->textarea()
+                        ->label('Service common names')
+                        ->placeholder("service1.example.local\nservice2.example.local")
+                        ->description('Vollständige Liste (ersetzt die bestehende). Vault-Adresse, AD Root CA und AppRole-Credentials werden vom Host wiederverwendet — kein erneutes Eintragen nötig.'),
+                ]))
+                ->handler(ManageCns::class)
+                ->register();
+        }
 
-        RegisterServerFeatureAction::make('vault-mtls', 'rotate-secret-id')
-            ->label('Rotate secret_id')
-            ->form(DynamicForm::make([
-                DynamicField::make('secret_id')
-                    ->password()
-                    ->label('New AppRole secret_id')
-                    ->description('Overwrites /etc/vault-agent/secret_id (chmod 600) and restarts the vault-agent daemon.'),
-            ]))
-            ->handler(RotateSecretId::class)
-            ->register();
+        if ($this->neu('server.features.vault-mtls.actions.rotate-secret-id')) {
+                RegisterServerFeatureAction::make('vault-mtls', 'rotate-secret-id')
+                ->label('Rotate secret_id')
+                ->form(DynamicForm::make([
+                    DynamicField::make('secret_id')
+                        ->password()
+                        ->label('New AppRole secret_id')
+                        ->description('Overwrites /etc/vault-agent/secret_id (chmod 600) and restarts the vault-agent daemon.'),
+                ]))
+                ->handler(RotateSecretId::class)
+                ->register();
+        }
 
-        RegisterServerFeatureAction::make('vault-mtls', 'uninstall')
-            ->label('Uninstall')
-            ->handler(Uninstall::class)
-            ->register();
+        if ($this->neu('server.features.vault-mtls.actions.uninstall')) {
+                RegisterServerFeatureAction::make('vault-mtls', 'uninstall')
+                ->label('Uninstall')
+                ->handler(Uninstall::class)
+                ->register();
+        }
 
         // Per-site feature: inject nginx client-certificate verification so that
         // /internal/* requires a valid client cert, while public traffic (port 80
@@ -135,19 +145,53 @@ class Plugin extends AbstractPlugin
 
         config(['site.types.laravel.handler' => LaravelMtls::class]);
 
-        RegisterSiteFeature::make('laravel', 'mtls-internal')
-            ->label('mTLS /internal')
-            ->description('Require a valid client certificate for /internal/* using the agent-issued certs under /etc/nginx/mtls. Installs a custom vhost template; keeps port 80 (Plesk reverse proxy) intact.')
-            ->register();
+        if ($this->neu('site.types.laravel.features.mtls-internal')) {
+                RegisterSiteFeature::make('laravel', 'mtls-internal')
+                ->label('mTLS /internal')
+                ->description('Require a valid client certificate for /internal/* using the agent-issued certs under /etc/nginx/mtls. Installs a custom vhost template; keeps port 80 (Plesk reverse proxy) intact.')
+                ->register();
+        }
 
-        RegisterSiteFeatureAction::make('laravel', 'mtls-internal', 'enable')
-            ->label('Enable')
-            ->handler(EnableMtls::class)
-            ->register();
+        if ($this->neu('site.types.laravel.features.mtls-internal.actions.enable')) {
+                RegisterSiteFeatureAction::make('laravel', 'mtls-internal', 'enable')
+                ->label('Enable')
+                ->handler(EnableMtls::class)
+                ->register();
+        }
 
-        RegisterSiteFeatureAction::make('laravel', 'mtls-internal', 'disable')
-            ->label('Disable')
-            ->handler(DisableMtls::class)
-            ->register();
+        if ($this->neu('site.types.laravel.features.mtls-internal.actions.disable')) {
+                RegisterSiteFeatureAction::make('laravel', 'mtls-internal', 'disable')
+                ->label('Disable')
+                ->handler(DisableMtls::class)
+                ->register();
+        }
+    }
+
+    /**
+     * Ist diese Registrierung noch nicht vorhanden?
+     *
+     * ## Warum boot() mehrfach laufen muss
+     *
+     * `php artisan optimize` bootet die Anwendung ZWEIMAL im selben Prozess:
+     * `config:cache` laeuft zuerst — dabei laeuft `BootPlugins`, unsere
+     * Registrierungen landen im Speicher, und `config:cache` schreibt genau
+     * diese angereicherte Konfiguration nach `bootstrap/cache/config.php`.
+     * Danach ruft `route:cache` ueber `getFreshApplication()` eine frische
+     * Anwendung auf, die den Cache laedt — in dem unsere Eintraege schon
+     * stehen — und bootet die Plugins erneut.
+     *
+     * Vier von Vitos Registrierungen werfen dann:
+     * `RegisterServerFeature`, `RegisterServerFeatureAction`,
+     * `RegisterSiteFeature` und `RegisterSiteFeatureAction` melden
+     * „already exists". `RegisterViews` und `RegisterSiteType` ueberschreiben
+     * dagegen still, die brauchen keine Wache.
+     *
+     * Geprueft wird je Registrierung und nicht einmal pauschal am Anfang:
+     * Kommt spaeter eine Aktion dazu, soll sie sich auch dann eintragen,
+     * wenn die uebrigen schon im Cache stehen.
+     */
+    private function neu(string $pfad): bool
+    {
+        return config($pfad) === null;
     }
 }

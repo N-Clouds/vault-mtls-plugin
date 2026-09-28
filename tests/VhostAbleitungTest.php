@@ -169,3 +169,26 @@ it('ruehrt Caddy nicht an', function () {
 
     expect($mitMtls)->toBe($ohne);
 });
+
+it('laesst sich zweimal booten, ohne zu werfen', function () {
+    /*
+     * DER Test, der am 28.09.2026 gefehlt hat.
+     *
+     * `php artisan optimize` bootet die Anwendung ZWEIMAL im selben Prozess:
+     * `config:cache` schreibt die von uns angereicherte Konfiguration in den
+     * Cache, danach laedt `route:cache` ueber `getFreshApplication()` genau
+     * diesen Cache und bootet die Plugins erneut. Vier von Vitos
+     * Registrierungen werfen dann „already exists" — und das Deploy bricht mit
+     * einem Stapel ab, in dem die eigentliche Meldung gar nicht auftaucht.
+     *
+     * `beforeEach` hat bereits einmal gebootet; der zweite Aufruf hier ist der
+     * Fall, der in Produktion gescheitert ist.
+     */
+    expect(fn () => (new Plugin)->boot())->not->toThrow(RuntimeException::class);
+
+    // Und die Registrierungen stehen danach genau einmal da, nicht doppelt.
+    expect(config('server.features.vault-mtls'))->not->toBeNull()
+        ->and(config('server.features.vault-mtls.actions'))->toHaveCount(4)
+        ->and(config('site.types.laravel.features.mtls-internal.actions'))->toHaveCount(2)
+        ->and(config('site.types.laravel.handler'))->toBe(LaravelMtls::class);
+});
