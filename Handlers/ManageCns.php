@@ -3,6 +3,8 @@
 namespace App\Vito\Plugins\NClouds\VaultMtlsPlugin\Handlers;
 
 use App\Actions\Worker\ManageWorker;
+use App\DTOs\DynamicField;
+use App\DTOs\DynamicForm;
 use App\Helpers\SSH;
 use App\Models\Worker;
 use App\ServerFeatures\Action;
@@ -38,6 +40,34 @@ class ManageCns extends Action
     {
         // Only available once the agent is installed (Install Agent has run).
         return $this->existingDaemon() !== null;
+    }
+
+    /**
+     * Das Formular lebt hier und nicht in Plugin.php, weil nur der Handler den Server kennt:
+     * Die bestehende CN-Liste steht vorbelegt im Feld. Vorher war das Feld leer und ersetzte
+     * beim Absenden die ganze Liste — wer eine App ergaenzen wollte, musste alle anderen aus dem
+     * Gedaechtnis abtippen, und ein vergessener Name nahm dieser App beim naechsten Neustart
+     * das Zertifikat.
+     */
+    public function form(): ?DynamicForm
+    {
+        // Nur der gespeicherte Stand: Server::features() baut dieses Formular bei jedem Aufruf der
+        // Features-Seite, dort darf keine SSH-Sitzung zum Host entstehen (lesen() holt sonst nach).
+        $bestehend = Zustand::gespeichert($this->server)['cns'] ?? [];
+
+        return DynamicForm::make([
+            DynamicField::make('app_cns')
+                ->textarea()
+                ->label('Service common names')
+                ->default(implode("\n", $bestehend))
+                ->placeholder("service1.example.local\nservice2.example.local")
+                ->description(
+                    ($bestehend === []
+                        ? 'Noch keine Namen bekannt — Liste eintragen. '
+                        : count($bestehend).' Name(n) aus dem Zustand vorbelegt; ergaenzen oder streichen. ')
+                    .'Die Liste ersetzt die bestehende vollstaendig. Vault-Adresse, AD Root CA und AppRole-Credentials werden vom Host wiederverwendet.'
+                ),
+        ]);
     }
 
     public function handle(Request $request): void

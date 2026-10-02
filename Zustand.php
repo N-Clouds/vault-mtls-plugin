@@ -50,6 +50,27 @@ class Zustand
      *
      * @return array{vault_addr: string, cns: array<int, string>, hmac_kv_path: string}
      */
+    /**
+     * Nur der in Vito gespeicherte Stand — ohne Host-Zugriff. Fuer Formulare, die beim
+     * Oeffnen der Features-Seite gebaut werden: Dort darf keine SSH-Sitzung entstehen.
+     *
+     * @return array{vault_addr: string, cns: array<int, string>, hmac_kv_path: string}|null
+     */
+    public static function gespeichert(Server $server): ?array
+    {
+        $gespeichert = $server->feature_data[self::SCHLUESSEL] ?? null;
+
+        if (! is_array($gespeichert) || ! isset($gespeichert['vault_addr'])) {
+            return null;
+        }
+
+        return [
+            'vault_addr'   => (string) $gespeichert['vault_addr'],
+            'cns'          => array_values((array) ($gespeichert['cns'] ?? [])),
+            'hmac_kv_path' => (string) ($gespeichert['hmac_kv_path'] ?? ''),
+        ];
+    }
+
     public static function lesen(Server $server): array
     {
         $gespeichert = $server->feature_data[self::SCHLUESSEL] ?? null;

@@ -76,15 +76,11 @@ class Plugin extends AbstractPlugin
         }
 
         if ($this->neu('server.features.vault-mtls.actions.manage-cns')) {
+                // Kein statisches Formular: Vito nimmt ein registriertes Formular immer vor
+                // ManageCns::form() (Server::features()), und nur der Handler kennt den Server —
+                // er fuellt die CN-Liste aus dem Zustand vor, statt sie abtippen zu lassen.
                 RegisterServerFeatureAction::make('vault-mtls', 'manage-cns')
                 ->label('Manage service names')
-                ->form(DynamicForm::make([
-                    DynamicField::make('app_cns')
-                        ->textarea()
-                        ->label('Service common names')
-                        ->placeholder("service1.example.local\nservice2.example.local")
-                        ->description('Vollständige Liste (ersetzt die bestehende). Vault-Adresse, AD Root CA und AppRole-Credentials werden vom Host wiederverwendet — kein erneutes Eintragen nötig.'),
-                ]))
                 ->handler(ManageCns::class)
                 ->register();
         }

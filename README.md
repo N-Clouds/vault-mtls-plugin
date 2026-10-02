@@ -70,6 +70,15 @@ On run it SSHes to the server (as root via `sudo`) and:
 Re-running Install is idempotent: an existing `vault-agent` daemon is deleted and
 recreated with the fresh config.
 
+### Manage service names (`manage-cns`): list is prefilled
+
+The textarea opens with the CN list the plugin currently knows (`Zustand`, i.e. what
+`Install Agent` / the last `Manage service names` wrote; on a fresh Vito it is read
+back from `agent.hcl` once). Add or remove lines and submit — the list still
+**replaces** the whole set, but nothing has to be retyped from memory. The form is
+built in `ManageCns::form()` on purpose: Vito prefers a form registered in
+`Plugin.php` over the handler's, and only the handler knows the server.
+
 ### Rotate secret_id (`rotate-secret-id`)
 Form: `secret_id` (password). Overwrites `/etc/vault-agent/secret_id` (0600) and
 restarts the `vault-agent` daemon.
