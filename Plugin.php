@@ -85,6 +85,18 @@ class Plugin extends AbstractPlugin
                 ->register();
         }
 
+        // Vito cached die Config MIT den Plugin-Registrierungen (`php artisan optimize` in
+        // scripts/update.sh bootet die Plugins). Ein Plugin-Update raeumt diesen Cache nicht
+        // auf: Dann steht hier noch das statische Formular aus Releases vor 3.1.0, `neu()`
+        // laesst die Registrierung oben aus, und Server::features() nimmt das alte Formular
+        // vor ManageCns::form(). Deshalb bei jedem Boot ausdruecklich leeren.
+        $actions = config('server.features.vault-mtls.actions', []);
+        if (isset($actions['manage-cns']) && ($actions['manage-cns']['form'] ?? []) !== []) {
+            $actions['manage-cns']['form'] = [];
+            $actions['manage-cns']['handler'] = ManageCns::class;
+            config(['server.features.vault-mtls.actions' => $actions]);
+        }
+
         if ($this->neu('server.features.vault-mtls.actions.rotate-secret-id')) {
                 RegisterServerFeatureAction::make('vault-mtls', 'rotate-secret-id')
                 ->label('Rotate secret_id')

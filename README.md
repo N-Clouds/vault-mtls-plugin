@@ -231,6 +231,14 @@ The `composer.json` is vestigial (kept for repo-local tooling); Vito 4 autoloads
 the plugin through the app's own `App\` PSR-4 mapping. If the plugin's `boot()`
 throws, Vito auto-disables it and records the error under Admin → Plugins.
 
+**After every plugin update:** Vito's own `scripts/update.sh` runs `php artisan optimize`,
+which caches the config **with** the plugin registrations. A plugin update through
+Admin → Plugins does not rebuild that cache, so forms and labels registered in
+`Plugin::boot()` can stay on the previous release until `php artisan optimize`
+(or `optimize:clear`) runs on the Vito host. Since 3.1.1 the plugin clears the one
+case that bit us (the static `manage-cns` form) itself on every boot; everything else
+still needs the rebuild.
+
 After enabling, open a server → **Features** tab for the "Vault mTLS" server
 feature, and a Laravel site → **Features** tab for "mTLS /internal".
 
